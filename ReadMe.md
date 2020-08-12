@@ -7,4 +7,4 @@ robotiq 包含夹爪的相关文件
 roslaunch ur_description view_ur3.launch
 
 ###UR3装配夹爪的机械臂在rviz中显示并gui操纵
-roslaunch ur_description view_ui3_robotiq.launch
+roslaunch ur_description view_ur3_robotiq.launch
