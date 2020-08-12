@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro"
+       name="ur3" >
+
+  <xacro:arg name="transmission_hw_interface" default="hardware_interface/PositionJointInterface"/>
+
+  <!-- common stuff -->
+  <xacro:include filename="$(find ur_description)/urdf/common.gazebo.xacro" />
+
+  <!-- ur3 -->
+  <xacro:include filename="$(find ur_description)/urdf/ur3.urdf.xacro" />
+
+  <!--robotiq-->
+  <xacro:include filename="$(find robotiq_ft_sensor)/urdf/robotiq_ft300.urdf.xacro" />
+  <xacro:include filename="$(find robotiq_2f_140_gripper_visualization)/urdf/robotiq_arg2f_140_model_macro.xacro" />
+  
+  <!-- arm -->
+  <xacro:ur3_robot prefix="" joint_limited="false"
+    transmission_hw_interface="$(arg transmission_hw_interface)"
+  />
+
+  <link name="world" />
+
+  <joint name="world_joint" type="fixed">
+    <parent link="world" />
+    <child link = "base_link" />
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+  </joint>
+
+ <!--robotiq FT_300 sernsor-->
+ <xacro:robotiq_ft300 prefix="" parent="tool0" >
+	<origin xyz="0 0 -0.01" rpy="0 0 0"/> 
+ </xacro:robotiq_ft300>
+ 
+ <xacro:robotiq_arg2f_140 prefix=""/>
+
+  <joint name="ft_gripper_joint" type="fixed">
+    <parent link="robotiq_ft_frame_id"/>
+    <child link="robotiq_arg2f_base_link"/>
+    <origin xyz="0 0 -0.01" rpy="0 0 0"/>
+ </joint>
+
+</robot>
