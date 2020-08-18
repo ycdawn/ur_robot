@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import rospy, sys
+import rospy, sys ,math
 import moveit_commander
 from geometry_msgs.msg import PoseStamped, Pose
 from moveit_commander import MoveGroupCommander, PlanningSceneInterface
@@ -15,12 +15,12 @@ from copy import deepcopy
 GROUP_NAME_ARM = 'arm'
 GROUP_NAME_GRIPPER = 'gripper'
 
-GRIPPER_FRAME = 'grasping_frame'
+M_PI = math.pi
 
 GRIPPER_OPEN = [0.004]
 GRIPPER_CLOSED = [0.01]
 
-REFERENCE_FRAME = 'base_link'
+REFERENCE_FRAME = 'world'
 
 class MoveItPickAndPlaceDemo:
     def __init__(self):
@@ -31,7 +31,7 @@ class MoveItPickAndPlaceDemo:
         rospy.init_node('moveit_pick_and_place_demo')
         
         # 初始化场景对象
-        scene = PlanningSceneInterface()
+        self.scenes = PlanningSceneInterface()
         
         # 创建一个发布场景变化信息的发布者
         self.scene_pub = rospy.Publisher('planning_scene', PlanningScene, queue_size=10)
@@ -43,12 +43,18 @@ class MoveItPickAndPlaceDemo:
         self.colors = dict()
                         
         # 初始化需要使用move group控制的机械臂中的arm group
-        arm = MoveGroupCommander(GROUP_NAME_ARM)
-        
+        self.group_arm = MoveGroupCommander(GROUP_NAME_ARM)
+        arm=self.group_arm
+
         # 初始化需要使用move group控制的机械臂中的gripper group
-        gripper = MoveGroupCommander(GROUP_NAME_GRIPPER)
-        
-        # 获取终端link的名称
+        self.group_gripper = MoveGroupCommander(GROUP_NAME_GRIPPER)
+        gripper=self.group_gripper
+
+        #创建全局使用的两个物体id
+        self.table_id = 'table'
+        self.target_id = 'target'
+
+        # 获取arm终端link的名称
         end_effector_link = arm.get_end_effector_link()
  
         # 设置位置(单位：米)和姿态（单位：弧度）的允许误差
@@ -61,55 +67,62 @@ class MoveItPickAndPlaceDemo:
         # 设置目标位置所使用的参考坐标系
         arm.set_pose_reference_frame(REFERENCE_FRAME)
         
-        # 设置每次运动规划的时间限制：5s
-        arm.set_planning_time(5)
+        # 设置每次运动规划的时间限制：2s
+        arm.set_planning_time(2)
         
         # 设置pick和place阶段的最大尝试次数
         max_pick_attempts = 5
         max_place_attempts = 5
         rospy.sleep(2)
 
-        # 设置场景物体的名称 
-        table_id = 'table'
-        box1_id = 'box1'
-        box2_id = 'box2'
-        target_id = 'target'
-                
-        # 移除场景中之前运行残留的物体
-        scene.remove_world_object(table_id)
-        scene.remove_world_object(box1_id)
-        scene.remove_world_object(box2_id)
-        scene.remove_world_object(target_id)
-        
-        # 移除场景中之前与机器臂绑定的物体
-        scene.remove_attached_object(GRIPPER_FRAME, target_id)  
-        rospy.sleep(1)
-        
         # 控制机械臂先回到初始化位置
         arm.set_named_target('home')
         arm.go()
         
         # 控制夹爪张开
-        gripper.set_joint_value_target(GRIPPER_OPEN)
+        gripper.set_name_target("open")
         gripper.go()
         rospy.sleep(1)
 
-        # 设置桌面的高度
-        table_ground = 0.2
+    #创建场景物体
+    def sceneObject(self):
+        # 设置场景物体的名称 
+        box1_id = 'box1'
+        box2_id = 'box2'
+        
+
+        scene=self.scenes 
+
+        # 移除场景中之前运行残留的物体
+        scene.remove_world_object(self.table_id)
+        scene.remove_world_object(box1_id)
+        scene.remove_world_object(box2_id)
+        scene.remove_world_object(self.target_id)
+        
+        REFERENCE_FRAME = 'world'
+        GRIPPER_FRAME = 'left_inner_finger_pad'
+
+
+        # 移除场景中之前与机器臂绑定的物体
+        scene.remove_attached_object(GRIPPER_FRAME, self.target_id)  
+        rospy.sleep(1)
+       
+        # 设置工作台位于机械臂底座下
+        table_ground = -0.01
         
         # 设置table、box1和box2的三维尺寸[长, 宽, 高]
-        table_size = [0.2, 0.7, 0.01]
+        table_size = [1.0, 1.0, 0.01]
         box1_size = [0.1, 0.05, 0.05]
         box2_size = [0.05, 0.05, 0.15]
         
         # 将三个物体加入场景当中
         table_pose = PoseStamped()
         table_pose.header.frame_id = REFERENCE_FRAME
-        table_pose.pose.position.x = 0.35
+        table_pose.pose.position.x = 0.0
         table_pose.pose.position.y = 0.0
         table_pose.pose.position.z = table_ground + table_size[2] / 2.0
         table_pose.pose.orientation.w = 1.0
-        scene.add_box(table_id, table_pose, table_size)
+        scene.add_box(self.table_id, table_pose, table_size)
         
         box1_pose = PoseStamped()
         box1_pose.header.frame_id = REFERENCE_FRAME
@@ -127,8 +140,8 @@ class MoveItPickAndPlaceDemo:
         box2_pose.pose.orientation.w = 1.0   
         scene.add_box(box2_id, box2_pose, box2_size)       
                 
-        # 将桌子设置成红色，两个box设置成橙色
-        self.setColor(table_id, 0.8, 0, 0, 1.0)
+        # 将桌子设置成蓝色，两个box设置成橙色
+        self.setColor(self.table_id, 0, 0, 0.8, 1.0)
         self.setColor(box1_id, 0.8, 0.4, 0, 1.0)
         self.setColor(box2_id, 0.8, 0.4, 0, 1.0)
         
@@ -142,18 +155,41 @@ class MoveItPickAndPlaceDemo:
         target_pose.pose.position.y = 0.0
         target_pose.pose.position.z = table_ground + table_size[2] + target_size[2] / 2.0
         target_pose.pose.orientation.w = 1.0
-        
+        self.target_pose=target_pose
+
         # 将抓取的目标物体加入场景中
-        scene.add_box(target_id, target_pose, target_size)
+        scene.add_box(self.target_id, target_pose, target_size)
         
         # 将目标物体设置为黄色
-        self.setColor(target_id, 0.9, 0.9, 0, 1.0)
+        self.setColor(self.target_id, 0.9, 0.9, 0, 1.0)
         
         # 将场景中的颜色设置发布
         self.sendColors()
 
+    def pick(self):
+
+        REFERENCE_FRAME = 'world'
+
+        pick_pose = PoseStamped()
+        target_pose.header.frame_id = REFERENCE_FRAME
+        target_pose.pose.position.x = 0.32
+        target_pose.pose.position.y = 0.0
+        target_pose.pose.position.z = table_ground + table_size[2] + target_size[2] / 2.0
+        target_quaternion=quaternion_from_euler(-M_PI / 2, -M_PI / 4, -M_PI / 2)
+        target_pose.pose.orientation.x=target_quaternion[0]
+        target_pose.pose.orientation.y=target_quaternion[1]
+        target_pose.pose.orientation.z=target_quaternion[2]
+        target_pose.pose.orientation.w=target_quaternion[3]
+
+        
+
+    def pick_place(self,target_pose):
+
+        arm=self.group_arm
+        REFERENCE_FRAME = 'world'
+
         # 设置支持的外观
-        arm.set_support_surface_name(table_id)
+        arm.set_support_surface_name(self.table_id)
         
         # 设置一个place阶段需要放置物体的目标位置
         place_pose = PoseStamped()
@@ -167,7 +203,7 @@ class MoveItPickAndPlaceDemo:
         grasp_pose = target_pose
                 
         # 生成抓取姿态
-        grasps = self.make_grasps(grasp_pose, [target_id])
+        grasps = self.make_grasps(grasp_pose, [self.target_id])
 
         # 将抓取姿态发布，可以在rviz中显示
         for grasp in grasps:
@@ -182,7 +218,7 @@ class MoveItPickAndPlaceDemo:
         while result != MoveItErrorCodes.SUCCESS and n_attempts < max_pick_attempts:
             n_attempts += 1
             rospy.loginfo("Pick attempt: " +  str(n_attempts))
-            result = arm.pick(target_id, grasps)
+            result = arm.pick(self.target_id, grasps)
             rospy.sleep(0.2)
         
         # 如果pick成功，则进入place阶段 
@@ -198,7 +234,7 @@ class MoveItPickAndPlaceDemo:
                 n_attempts += 1
                 rospy.loginfo("Place attempt: " +  str(n_attempts))
                 for place in places:
-                    result = arm.place(target_id, place)
+                    result = arm.place(self.target_id, place)
                     if result == MoveItErrorCodes.SUCCESS:
                         break
                 rospy.sleep(0.2)
