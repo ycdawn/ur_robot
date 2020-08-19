@@ -26,8 +26,8 @@ bool setArmJointState(std::string preset_state, moveit::planning_interface::Move
     else if(preset_state=="prepick")
     {
         joint_group_positions[0]= 0;
-        joint_group_positions[1]= -1;
-        joint_group_positions[2]= 1;
+        joint_group_positions[1]= -1.29;
+        joint_group_positions[2]= 1.08;
         joint_group_positions[3]= -M_PI_2;
         joint_group_positions[4]= -M_PI_2;
         joint_group_positions[5]= 0;
@@ -155,9 +155,6 @@ void setGripper(double gripper_joint_value)
     
 
 }
-
-
-
 
 
 void setPathConstraints(moveit::planning_interface::MoveGroupInterface& move_group)
@@ -312,6 +309,9 @@ int main(int argc ,char** argv)
     //3.机械臂运动到预抓取位置
     setArmJointState("prepick",arm);
     
+    //3.5 机械臂运动到抓取位置
+    setEndPose(arm,0.42,0.11,0.24,0,-1,0,0);//pick pose
+    
     //4.将夹爪收紧，显示当前终端姿态
     setGripper(0.38);
     showEndPose(arm);
@@ -322,8 +322,7 @@ int main(int argc ,char** argv)
     //6.机械臂运动到空中预放置位置
     setArmJointState("pickup",arm);
     ROS_INFO("finnish pick");
-    ros::WallDuration(1.0).sleep();
-
+    
     //7.机械臂运动到放置位置
     setEndPose(arm,0.12,0.43,0.24,0,-1,0,0);//place pose
 
